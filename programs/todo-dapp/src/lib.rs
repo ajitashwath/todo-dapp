@@ -1,12 +1,12 @@
 use anchor_lang::prelude::*;
 
-declare_id!();
+declare_id!("7rfeigr8txwz8z1juPKPZBA3Spk6mFQU6DTxPZaz5x9h");
 
 #[program]
 pub mod todo_dapp {
     use super::*;
 
-    pub fn initialize_user(ctx: Context<InitializerUser>) -> Result<()> {
+    pub fn initialize_user(ctx: Context<InitializeUser>) -> Result<()> {
         let user_profile = &mut ctx.accounts.user_profile;
         user_profile.authority = ctx.accounts.authority.key();
         user_profile.last_todo = 0;
@@ -74,7 +74,6 @@ pub struct InitializeUser<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction()]
 pub struct AddTodo<'info> {
     #[account(
         mut,
@@ -83,4 +82,151 @@ pub struct AddTodo<'info> {
         has_one = authority,
     )]
     pub user_profile: Account<'info, UserProfile>,
+
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + std::mem::size_of::<TodoAccount>(),
+        seeds = [TODO_TAG, authority.key().as_ref(), &[user_profile.last_todo]],
+        bump
+    )]
+    pub todo_account: Account<'info, TodoAccount>,
+
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
 }
+
+#[derive(Accounts)]
+#[instruction(todo_idx: u8)]
+pub struct MarkTodo<'info> {
+    #[account(
+        mut,
+        seeds = [USER_TAG, authority.key().as_ref()],
+        bump,
+        has_one = authority,
+    )]
+    pub user_profile: Account<'info, UserProfile>,
+
+    #[account(
+        mut,
+        seeds = [TODO_TAG, authority.key().as_ref(), &[todo_idx].as_ref()],
+        bump,
+        has_one = authority,
+    )]
+    pub todo_account: Account<'info, TodoAccount>,
+
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(todo_idx: u8)]
+pub struct UnmarkTodo<'info> {
+    #[account(
+        mut,
+        seeds = [USER_TAG, authority.key().as_ref()],
+        bump,
+        has_one = authority,
+    )]
+    pub user_profile: Account<'info, UserProfile>,
+
+    #[account(
+        mut,
+        seeds = [TODO_TAG, authority.key().as_ref(), &[todo_idx].as_ref()],
+        bump,
+        has_one = authority,
+    )]
+    pub todo_account: Account<'info, TodoAccount>,
+
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(todo_idx: u8)]
+pub struct RemoveTodo<'info> {
+    #[account(
+        mut,
+        seeds = [USER_TAG, authority.key().as_ref()],
+        bump,
+        has_one = authority,
+    )]
+    pub user_profile: Account<'info, UserProfile>,
+
+    #[account(
+        mut,
+        close = authority,
+        seeds = [TODO_TAG, authority.key().as_ref(), &[todo_idx].as_ref()],
+        bump,
+        has_one = authority,
+    )]
+    pub todo_account: Account<'info, TodoAccount>,
+
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(todo_idx: u8)]
+pub struct UpdateTodo<'info> {
+    #[account(
+        mut,
+        seeds = [USER_TAG, authority.key().as_ref()],
+        bump,
+        has_one = authority,
+    )]
+    pub user_profile: Account<'info, UserProfile>,
+
+    #[account(
+        mut,
+        seeds = [TODO_TAG, authority.key().as_ref(), &[todo_idx].as_ref()],
+        bump,
+        has_one = authority,
+    )]
+    pub todo_account: Account<'info, TodoAccount>,
+
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[account]
+pub struct UserProfile {
+    pub authority: Pubkey,
+    pub last_todo: u8,
+    pub todo_count: u8,
+}
+
+#[account]
+pub struct TodoAccount {
+    pub authority: Pubkey,
+    pub idx: u8,
+    pub content: String,
+    pub marked: bool,
+}
+
+#[error_code]
+pub enum TodoError {
+    #[msg("You are not authorized to mark this todo.")]
+    Unauthorized,
+    #[msg("Not allowed")]
+    NotAllowed,
+    #[msg("Math operation overflow")]
+    MathOverflow,
+    #[msg("Already marked")]
+    AlreadyMarked,
+    #[msg("Not marked")]
+    NotMarked,
+}
+
+const USER_TAG: &[u8] = b"USER_STATE";
+const TODO_TAG: &[u8] = b"TODO_STATE";
